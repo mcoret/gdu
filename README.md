@@ -26,7 +26,7 @@ Using curl:
     chmod +x gdu_linux_amd64
     mv gdu_linux_amd64 /usr/bin/gdu
 
-[Arch Linux](https://aur.archlinux.org/packages/gdu/):
+[Arch Linux](https://archlinux.org/packages/community/x86_64/gdu/):
 
     pacman -S gdu
 
@@ -65,14 +65,20 @@ Using curl:
 
     go install github.com/dundee/gdu/v5/cmd/gdu@latest
 
+[Winget](https://github.com/microsoft/winget-pkgs/tree/master/manifests/d/dundee/gdu):
+
+    winget install gdu
+
 ## Usage
 
 ```
   gdu [flags] [directory_to_scan]
 
 Flags:
+      --config-file string            Read config from file (default is $HOME/.gdu.yaml)
   -g, --const-gc                      Enable memory garbage collection during analysis with constant level set by GOGC
       --enable-profiling              Enable collection of profiling data and provide it on http://localhost:6060/debug/pprof/
+  -L, --follow-symlinks               Follow symlinks for files, i.e. show the size of the file to which symlink points to (symlinks to directories are not followed)
   -h, --help                          help for gdu
   -i, --ignore-dirs strings           Absolute paths to ignore (separated by comma) (default [/proc,/dev,/sys,/run])
   -I, --ignore-dirs-pattern strings   Absolute path patterns to ignore (separated by comma)
@@ -83,6 +89,7 @@ Flags:
   -c, --no-color                      Do not use colorized output
   -x, --no-cross                      Do not cross filesystem boundaries
   -H, --no-hidden                     Ignore hidden directories (beginning with dot)
+      --no-mouse                      Do not use mouse
       --no-prefix                     Show sizes as raw numbers without any prefixes (SI or binary) in non-interactive mode
   -p, --no-progress                   Do not show progress in non-interactive mode
   -n, --non-interactive               Do not run in interactive mode
@@ -93,6 +100,7 @@ Flags:
       --si                            Show sizes with decimal SI prefixes (kB, MB, GB) instead of binary prefixes (KiB, MiB, GiB)
   -s, --summarize                     Show only a total in non-interactive mode
   -v, --version                       Print version
+      --write-config                  Write current configuration to file (default is $HOME/.gdu.yaml)
 ```
 
 ## Examples
@@ -140,6 +148,54 @@ flag with following meaning:
 
 * `e` Directory is empty.
 
+## Configuration file
+
+Gdu can read (and write) YAML configuration file.
+
+`$HOME/.config/gdu/gdu.yaml` and `$HOME/.gdu.yaml` are checked for the presense of the config file by default.
+
+### Examples
+
+* To configure gdu to permanently run in gray-scale color mode:
+
+```
+echo "no-color: true" >> ~/.gdu.yaml
+```
+
+* To set default sorting in configuration file:
+
+```
+sorting:
+    by: name // size, name, itemCount, mtime
+    order: desc
+```
+
+* To configure gdu to set CWD variable when browsing directories:
+
+```
+echo "change-cwd: true" >> ~/.gdu.yaml
+```
+
+* To save the current configuration
+
+```
+gdu --write-config
+```
+
+## Styling
+
+There are wast ways how terminals can be colored.
+Some gdu primitives (like basic text) addapt to different color schemas, but the selected/highlighted row does not.
+
+If the default look is not sufficient, it can be changed in configuration file, e.g.:
+
+```
+style:
+    selected-row:
+        text-color: black
+        background-color: "#ff0000"
+```
+
 ## Memory usage
 
 ### Automatic balancing
@@ -168,6 +224,7 @@ GOGC=200 gdu -g /
 
 ## Running tests
 
+    make install-dev-dependencies
     make test
 
 ## Benchmarks
@@ -189,27 +246,27 @@ Filesystem cache was cleared using `sync; echo 3 | sudo tee /proc/sys/vm/drop_ca
 
 | Command | Mean [s] | Min [s] | Max [s] | Relative |
 |:---|---:|---:|---:|---:|
-| `gdu -npc ~` | 5.390 ± 0.094 | 5.303 | 5.644 | 1.00 ± 0.02 |
-| `gdu -gnpc ~` | 6.275 ± 2.406 | 5.379 | 13.097 | 1.17 ± 0.45 |
-| `dua ~` | 6.727 ± 0.019 | 6.689 | 6.748 | 1.25 ± 0.01 |
-| `duc index ~` | 31.377 ± 0.176 | 31.085 | 31.701 | 5.83 ± 0.06 |
-| `ncdu -0 -o /dev/null ~` | 31.311 ± 0.100 | 31.170 | 31.507 | 5.82 ± 0.05 |
-| `diskus ~` | 5.383 ± 0.044 | 5.287 | 5.440 | 1.00 |
-| `du -hs ~` | 30.333 ± 0.408 | 29.865 | 31.086 | 5.63 ± 0.09 |
-| `dust -d0 ~` | 6.889 ± 0.354 | 6.738 | 7.889 | 1.28 ± 0.07 |
+| `diskus ~` | 4.629 ± 0.028 | 4.581 | 4.667 | 1.00 |
+| `gdu -npc ~` | 4.715 ± 0.016 | 4.694 | 4.751 | 1.02 ± 0.01 |
+| `gdu -gnpc ~` | 4.718 ± 0.015 | 4.701 | 4.754 | 1.02 ± 0.01 |
+| `dua ~` | 5.815 ± 0.007 | 5.805 | 5.829 | 1.26 ± 0.01 |
+| `dust -d0 ~` | 5.878 ± 0.079 | 5.817 | 6.093 | 1.27 ± 0.02 |
+| `du -hs ~` | 22.805 ± 0.071 | 22.694 | 22.896 | 4.93 ± 0.03 |
+| `duc index ~` | 23.418 ± 0.046 | 23.340 | 23.473 | 5.06 ± 0.03 |
+| `ncdu -0 -o /dev/null ~` | 23.786 ± 0.074 | 23.626 | 23.891 | 5.14 ± 0.04 |
 
 ### Warm cache
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `gdu -npc ~` | 840.3 ± 13.4 | 817.7 | 867.8 | 1.74 ± 0.06 |
-| `gdu -gnpc ~` | 1038.4 ± 9.7 | 1021.3 | 1054.1 | 2.15 ± 0.07 |
-| `dua ~` | 635.0 ± 20.6 | 602.6 | 669.9 | 1.32 ± 0.06 |
-| `duc index ~` | 1879.5 ± 18.5 | 1853.5 | 1922.1 | 3.90 ± 0.13 |
-| `ncdu -0 -o /dev/null ~` | 2618.5 ± 10.0 | 2607.9 | 2634.8 | 5.43 ± 0.18 |
-| `diskus ~` | 482.4 ± 15.6 | 456.5 | 516.9 | 1.00 |
-| `du -hs ~` | 1508.7 ± 8.2 | 1501.1 | 1524.3 | 3.13 ± 0.10 |
-| `dust -d0 ~` | 832.5 ± 27.0 | 797.3 | 895.5 | 1.73 ± 0.08 |
+| `diskus ~` | 370.1 ± 13.2 | 356.1 | 402.4 | 1.00 |
+| `dua ~` | 472.0 ± 7.3 | 460.1 | 482.5 | 1.28 ± 0.05 |
+| `dust -d0 ~` | 568.7 ± 14.6 | 551.0 | 601.2 | 1.54 ± 0.07 |
+| `gdu -npc ~` | 609.9 ± 6.3 | 599.5 | 619.8 | 1.65 ± 0.06 |
+| `gdu -gnpc ~` | 732.3 ± 14.0 | 710.7 | 758.2 | 1.98 ± 0.08 |
+| `du -hs ~` | 1322.4 ± 9.1 | 1309.9 | 1333.6 | 3.57 ± 0.13 |
+| `duc index ~` | 1548.3 ± 15.2 | 1529.5 | 1574.4 | 4.18 ± 0.15 |
+| `ncdu -0 -o /dev/null ~` | 2220.2 ± 9.4 | 2205.6 | 2231.5 | 6.00 ± 0.21 |
 
 ## Alternatives
 

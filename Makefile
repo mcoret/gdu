@@ -11,6 +11,10 @@ LDFLAGS := -s -w -extldflags '-static' \
 	-X '$(PACKAGE)/build.Version=$(VERSION)' \
 	-X '$(PACKAGE)/build.User=$(shell id -u -n)' \
 	-X '$(PACKAGE)/build.Time=$(shell LC_ALL=en_US.UTF-8 date)'
+TAR := tar
+ifeq ($(shell uname -s),Darwin)
+	TAR := gtar # brew install gnu-tar
+endif
 
 all: clean tarball build-all man clean-uncompressed-dist shasums
 
@@ -22,7 +26,7 @@ vendor: go.mod go.sum
 
 tarball: vendor
 	-mkdir dist
-	tar czf dist/$(NAMEVER).tgz --transform "s,^,$(NAMEVER)/," --exclude dist --exclude test_dir --exclude coverage.txt *
+	$(TAR) czf dist/$(NAMEVER).tgz --transform "s,^,$(NAMEVER)/," --exclude dist --exclude test_dir --exclude coverage.txt *
 
 build:
 	@echo "Version: " $(VERSION)
@@ -43,7 +47,7 @@ build-all:
 		-output="dist/gdu_{{.OS}}_{{.Arch}}" \
 		-ldflags="$(LDFLAGS)" \
 		$(PACKAGE)/$(CMD_GDU)
-	
+
 	-CGO_ENABLED=0 gox \
 		-os="windows" \
 		-arch="amd64" \
@@ -64,8 +68,9 @@ build-all:
 	cd dist; CGO_ENABLED=0 GOOS=linux GOARM=6 GOARCH=arm go build -ldflags="$(LDFLAGS)" -o gdu_linux_armv6l $(PACKAGE)/$(CMD_GDU)
 	cd dist; CGO_ENABLED=0 GOOS=linux GOARM=7 GOARCH=arm go build -ldflags="$(LDFLAGS)" -o gdu_linux_armv7l $(PACKAGE)/$(CMD_GDU)
 	cd dist; CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="$(LDFLAGS)" -o gdu_linux_arm64 $(PACKAGE)/$(CMD_GDU)
+	cd dist; CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -ldflags="$(LDFLAGS)" -o gdu_android_arm64 $(PACKAGE)/$(CMD_GDU)
 
-	cd dist; for file in gdu_linux_* gdu_darwin_* gdu_netbsd_* gdu_openbsd_* gdu_freebsd_*; do tar czf $$file.tgz $$file; done
+	cd dist; for file in gdu_linux_* gdu_darwin_* gdu_netbsd_* gdu_openbsd_* gdu_freebsd_* gdu_android_*; do tar czf $$file.tgz $$file; done
 	cd dist; for file in gdu_windows_*; do zip $$file.zip $$file; done
 
 gdu.1: gdu.1.md
@@ -82,10 +87,10 @@ show-man:
 	pandoc gdu.1.date.md -s -t man | man -l -
 
 test:
-	go test -v ./...
+	gotestsum
 
 coverage:
-	go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+	gotestsum -- -race -coverprofile=coverage.txt -covermode=atomic ./...
 
 coverage-html: coverage
 	go tool cover -html=coverage.txt
@@ -94,14 +99,18 @@ gobench:
 	go test -bench=. $(PACKAGE)/pkg/analyze
 
 benchmark:
+	sudo cpupower frequency-set -g performance
 	hyperfine --export-markdown=bench-cold.md \
 		--prepare 'sync; echo 3 | sudo tee /proc/sys/vm/drop_caches' \
+		--ignore-failure \
 		'gdu -npc ~' 'gdu -gnpc ~' 'dua ~' 'duc index ~' 'ncdu -0 -o /dev/null ~' \
 		'diskus ~' 'du -hs ~' 'dust -d0 ~'
 	hyperfine --export-markdown=bench-warm.md \
 		--warmup 5 \
+		--ignore-failure \
 		'gdu -npc ~' 'gdu -gnpc ~' 'dua ~' 'duc index ~' 'ncdu -0 -o /dev/null ~' \
 		'diskus ~' 'du -hs ~' 'dust -d0 ~'
+	sudo cpupower frequency-set -g schedutil
 
 clean:
 	go mod tidy
@@ -119,5 +128,8 @@ shasums:
 
 release:
 	gh release create -t "gdu $(VERSION)" $(VERSION) ./dist/*
+
+install-dev-dependencies:
+	go install gotest.tools/gotestsum@latest
 
 .PHONY: run build build-static build-all test gobench benchmark coverage coverage-html clean clean-uncompressed-dist man show-man release

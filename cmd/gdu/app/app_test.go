@@ -47,6 +47,21 @@ func TestAnalyzePath(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestFollowSymlinks(t *testing.T) {
+	fin := testdir.CreateTestDir()
+	defer fin()
+
+	out, err := runApp(
+		&Flags{LogFile: "/dev/null", FollowSymlinks: true},
+		[]string{"test_dir"},
+		false,
+		testdev.DevicesInfoGetterMock{},
+	)
+
+	assert.Contains(t, out, "nested")
+	assert.Nil(t, err)
+}
+
 func TestAnalyzePathProfiling(t *testing.T) {
 	fin := testdir.CreateTestDir()
 	defer fin()
@@ -134,6 +149,53 @@ func TestAnalyzePathWithGui(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestAnalyzePathWithDefaultSorting(t *testing.T) {
+	fin := testdir.CreateTestDir()
+	defer fin()
+
+	out, err := runApp(
+		&Flags{
+			LogFile: "/dev/null",
+			Sorting: Sorting{
+				By:    "name",
+				Order: "asc",
+			},
+		},
+		[]string{"test_dir"},
+		true,
+		testdev.DevicesInfoGetterMock{},
+	)
+
+	assert.Empty(t, out)
+	assert.Nil(t, err)
+}
+
+func TestAnalyzePathWithStyle(t *testing.T) {
+	fin := testdir.CreateTestDir()
+	defer fin()
+
+	out, err := runApp(
+		&Flags{
+			LogFile: "/dev/null",
+			Style: Style{
+				SelectedRow: ColorStyle{
+					TextColor:       "black",
+					BackgroundColor: "red",
+				},
+				ProgressModal: ProgressModalOpts{
+					CurrentItemNameMaxLen: 10,
+				},
+			},
+		},
+		[]string{"test_dir"},
+		true,
+		testdev.DevicesInfoGetterMock{},
+	)
+
+	assert.Empty(t, out)
+	assert.Nil(t, err)
+}
+
 func TestAnalyzePathWithExport(t *testing.T) {
 	fin := testdir.CreateTestDir()
 	defer fin()
@@ -149,6 +211,24 @@ func TestAnalyzePathWithExport(t *testing.T) {
 	)
 
 	assert.NotEmpty(t, out)
+	assert.Nil(t, err)
+}
+
+func TestAnalyzePathWithChdir(t *testing.T) {
+	fin := testdir.CreateTestDir()
+	defer fin()
+
+	out, err := runApp(
+		&Flags{
+			LogFile:   "/dev/null",
+			ChangeCwd: true,
+		},
+		[]string{"test_dir"},
+		true,
+		testdev.DevicesInfoGetterMock{},
+	)
+
+	assert.Empty(t, out)
 	assert.Nil(t, err)
 }
 
@@ -175,6 +255,18 @@ func TestReadWrongAnalysisFromFile(t *testing.T) {
 
 	assert.Empty(t, out)
 	assert.Contains(t, err.Error(), "Array of maps not found")
+}
+
+func TestWrongCombinationOfPrefixes(t *testing.T) {
+	out, err := runApp(
+		&Flags{NoPrefix: true, UseSIPrefix: true},
+		[]string{"test_dir"},
+		false,
+		testdev.DevicesInfoGetterMock{},
+	)
+
+	assert.Empty(t, out)
+	assert.Contains(t, err.Error(), "cannot be used at once")
 }
 
 func TestReadWrongAnalysisFromNotExistingFile(t *testing.T) {
